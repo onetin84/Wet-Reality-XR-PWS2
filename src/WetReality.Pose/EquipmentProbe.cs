@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime;
 using MelonLoader;
 using UnityEngine;
 
@@ -29,6 +30,18 @@ namespace WetReality;
 //   Bild auf/ab        bei offener Waehlscheibe: InvokeNavigateSubMenu(+1/-1)
 //                      sonst: WasherInputHandler.OnChangeNozzleWidth(+1/-1)
 //   Umschalt+F7        +100000 Geld, ShopManager.AddCurrencyRemote(v, usingMuckCoin: false)
+//   Umschalt+F8        Trident und Duo (DoubleTurbo) samt jedem Washer, zu dem
+//                      sie passen, in Besitz: UnlockManager.UnlockEquipment(id,
+//                      triggerSave: true). Das schreibt in den Spielstand.
+//
+// Umschalt+F8 gibt es, weil Geld allein nicht reicht: der Trident und seine
+// Washer-Klasse stehen im Shop gesperrt (Freischaltregeln, ContentStatus unter
+// Available), nicht nur zu teuer. Ohne Trident laesst sich die Notiz
+// docs/PWS2-Notiz Turbo und Trident.md nicht messen. Gewaehlt wird ueber den
+// Asset-Namen (Catalog: CND_PW2_GD_PVProfessionalTrident,
+// CND_PW2_GD_UXProfessionalDoubleTurbo) und die Washer ueber das Spiel selbst,
+// NozzleData.IsCompatible(washer.UniqueId). Jede Zeile nennt den Status davor;
+// ein zweiter Druck zeigt, ob er gehalten hat, und ueberspringt Owned.
 //
 // Solange eine der beiden Waehlscheiben offen ist, geht der rechte Stick als
 // RadialWheelNavigateRaw ans Spiel, und einmal pro Sekunde steht im Log, was
@@ -157,6 +170,9 @@ internal sealed class EquipmentProbe
             if (shift && Input.GetKeyDown(KeyCode.F7))
                 AddMoney(log);
 
+            if (shift && Input.GetKeyDown(KeyCode.F8))
+                UnlockTestNozzles(log);
+
             if (WheelOpen)
                 FeedWheel(log, input, menuMode, rightStick);
         }
@@ -206,12 +222,120 @@ internal sealed class EquipmentProbe
 
     private static void AddMoney(MelonLogger.Instance log)
     {
-        // 1.115.0 las den ShopManager ueber ConfigurationManager.m_shopManager
-        // und meldete in der Basis zweimal "no ShopManager". Jetzt zuerst aus
-        // dem Spielzustand: GameplayStateBase.ShopManager, und HubGameplayState
-        // - die Basis - erbt von GameplayStateBase.
         var manager = FindConfigurationManager();
-        var source = "GameplayStateBase.ShopManager";
+        var shop = FindShopManager(log, manager, out var source);
+
+        if (shop is null)
+            return;
+
+        var before = ReadMoney(manager);
+        var returned = shop.AddCurrencyRemote(MoneyStep, false);
+        log.Msg($"equipment probe: AddCurrencyRemote({MoneyStep}, usingMuckCoin: false) via {source} "
+            + $"returned {returned}   money before {before}  after {ReadMoney(manager)}");
+    }
+
+    // Die Namen stammen aus dem Addressables-Katalog, nicht aus einer
+    // Messung am laufenden Spiel. Findet ein Druck keinen davon, sagt das Log
+    // es und nennt, wie viele NozzleData ueberhaupt geladen sind.
+    private static readonly string[] TestNozzleNames = { "Trident", "DoubleTurbo" };
+
+    private static void UnlockTestNozzles(MelonLogger.Instance log)
+    {
+        var shop = FindShopManager(log, FindConfigurationManager(), out var source);
+
+        if (shop is null)
+            return;
+
+        // Kein Aufruf auf dem Interface-Wrapper (Abschnitt 118): nur TryCast
+        // auf die konkrete Klasse, und nur deren eigene Methoden.
+        var wrapper = shop.m_unlockManager;
+        var unlock = wrapper is null ? null : wrapper.TryCast<Il2CppFuturLab.PW2.UnlockSystem.UnlockManager>();
+
+        if (unlock is null || unlock == null)
+        {
+            log.Msg($"equipment probe: unlock skipped - m_unlockManager via {source} is "
+                + $"{(wrapper is null ? "null" : "not an UnlockManager")}");
+            return;
+        }
+
+        var nozzles = Resources.FindObjectsOfTypeAll(Il2CppType.Of<Il2CppFuturLab.PW2.NozzleData>());
+        var washers = Resources.FindObjectsOfTypeAll(Il2CppType.Of<Il2CppFuturLab.PW2.PowerWasherData>());
+        log.Msg($"equipment probe: unlock via {source}   loaded NozzleData {nozzles.Length}  "
+            + $"PowerWasherData {washers.Length}");
+
+        var targets = 0;
+
+        for (var n = 0; n < nozzles.Length; n++)
+        {
+            var nozzle = nozzles[n]?.TryCast<Il2CppFuturLab.PW2.NozzleData>();
+
+            if (nozzle is null || nozzle == null || !IsTestNozzle(nozzle.name))
+                continue;
+
+            targets++;
+            Unlock(log, unlock, nozzle, "nozzle");
+
+            for (var w = 0; w < washers.Length; w++)
+            {
+                var washer = washers[w]?.TryCast<Il2CppFuturLab.PW2.PowerWasherData>();
+
+                if (washer is null || washer == null || !nozzle.IsCompatible(washer.UniqueId))
+                    continue;
+
+                Unlock(log, unlock, washer, $"washer for {nozzle.name} (class {washer.Class})");
+            }
+        }
+
+        if (targets == 0)
+            log.Msg($"equipment probe: unlock found no NozzleData named like "
+                + $"{string.Join(" / ", TestNozzleNames)} - nothing changed");
+    }
+
+    private static bool IsTestNozzle(string name)
+    {
+        foreach (var part in TestNozzleNames)
+        {
+            if (name.Contains(part, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void Unlock(MelonLogger.Instance log,
+        Il2CppFuturLab.PW2.UnlockSystem.UnlockManager unlock, Il2CppFuturLab.PW2.GameContent content,
+        string what)
+    {
+        try
+        {
+            var before = unlock.CheckCurrentStatus(content);
+
+            if (before == Il2CppFuturLab.PW2.ContentStatus.Owned)
+            {
+                log.Msg($"    {what}: {content.name} id {content.UniqueId} already {before}");
+                return;
+            }
+
+            // Die Task wird nicht abgewartet; das Spiel fuehrt sie selbst zu
+            // Ende. Ob der Status gehalten hat, zeigt der naechste Druck.
+            unlock.UnlockEquipment(content.UniqueId, true);
+            log.Msg($"    {what}: {content.name} id {content.UniqueId}   {before} -> "
+                + $"UnlockEquipment(triggerSave: true)   now {unlock.CheckCurrentStatus(content)}");
+        }
+        catch (Exception exception)
+        {
+            log.Warning($"    {what}: {content.name} threw {exception.GetType().Name}: {exception.Message}");
+        }
+    }
+
+    // 1.115.0 las den ShopManager ueber ConfigurationManager.m_shopManager
+    // und meldete in der Basis zweimal "no ShopManager". Jetzt zuerst aus
+    // dem Spielzustand: GameplayStateBase.ShopManager, und HubGameplayState
+    // - die Basis - erbt von GameplayStateBase.
+    private static Il2CppFuturLab.PW2.ShopManager? FindShopManager(MelonLogger.Instance log,
+        Il2CppFuturLab.PW2.ConfigurationManager? manager, out string source)
+    {
+        source = "GameplayStateBase.ShopManager";
         Il2CppFuturLab.PW2.ShopManager? shop = null;
 
         try
@@ -235,15 +359,12 @@ internal sealed class EquipmentProbe
 
         if (shop is null || shop == null)
         {
-            log.Msg($"equipment probe: money skipped - no ShopManager "
+            log.Msg($"equipment probe: skipped - no ShopManager "
                 + $"(configuration manager {(manager is null ? "absent" : "present")})");
-            return;
+            return null;
         }
 
-        var before = ReadMoney(manager);
-        var returned = shop.AddCurrencyRemote(MoneyStep, false);
-        log.Msg($"equipment probe: AddCurrencyRemote({MoneyStep}, usingMuckCoin: false) via {source} "
-            + $"returned {returned}   money before {before}  after {ReadMoney(manager)}");
+        return shop;
     }
 
     private static string ReadMoney(Il2CppFuturLab.PW2.ConfigurationManager? manager)

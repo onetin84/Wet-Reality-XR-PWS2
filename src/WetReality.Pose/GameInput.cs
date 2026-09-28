@@ -440,6 +440,21 @@ internal static class GameInput
     internal static bool NozzleReady;
     internal static long JobWrites;
 
+    // JE STRAHL, gesetzt von NozzleJets im selben DriveRay wie die drei oben.
+    // Bis 1.121.3 bekam jede Instanz NozzleOrigin/NozzleForward, und damit
+    // reinigten zweiter und dritter Strahl die Stelle des ersten. Jetzt: die
+    // Lage des eigenen RaySpawnPoint relativ zum ersten, aufgesetzt auf dessen
+    // veroeffentlichte Pose. Versatz null und Identitaet fuer den ersten
+    // Punkt - Einzelduesen laufen also unveraendert.
+    internal static Quaternion NozzleRotation = Quaternion.identity;
+    internal static readonly Vector3[] JetOffset = new Vector3[8];
+    internal static readonly Quaternion[] JetRotation = new Quaternion[8];
+    internal static readonly float[] TurboPhase = new float[8];
+    internal static int JetCount;
+    internal static bool PerJet;
+    internal static bool TurboActive;
+    internal static long PerJetWrites;
+
     private static void RaycastUpdatePostfix(Il2CppFuturLab.PW2.WashEquipment __instance)
     {
         if (!Active || (AimSkip & 256) == 0 || !NozzleReady)
@@ -459,8 +474,24 @@ internal static class GameInput
                 if (instance is null)
                     continue;
 
-                instance.Direction = NozzleForward;
-                instance.Origin = NozzleOrigin;
+                if (PerJet && index < JetCount)
+                {
+                    instance.Direction = NozzleRotation * (JetRotation[index] * Vector3.forward);
+                    instance.Origin = NozzleOrigin + NozzleRotation * JetOffset[index];
+
+                    if (JetOffset[index] != Vector3.zero || JetRotation[index] != Quaternion.identity)
+                        PerJetWrites++;
+                }
+                else
+                {
+                    instance.Direction = NozzleForward;
+                    instance.Origin = NozzleOrigin;
+                }
+
+                // Die Phase, die SetWashDirection unter Bit 1 nicht mehr
+                // weiterzaehlt. Liest WashProbe fuer die Turbo-Haptik zurueck.
+                if (TurboActive && index < JetCount)
+                    instance.TurboRotation = TurboPhase[index];
 
                 // WRITTEN BACK, and this line is the whole fix.
                 //

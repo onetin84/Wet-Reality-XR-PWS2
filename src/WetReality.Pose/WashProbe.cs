@@ -76,6 +76,10 @@ internal sealed class WashProbe
     // wird nur gelesen, also genuegt die Kopie.
     internal float TurboRotation { get; private set; }
 
+    // Fuer NozzleJets, das dieselbe Instanz braucht und keine zweite Suche
+    // bezahlen soll. Null, solange Sample keine gefunden hat.
+    internal Il2CppFuturLab.PW2.WashEquipment? Equipment => equipment;
+
     private Il2CppFuturLab.PW2.PositionToFOV? positionToFov;
     private float nextFovResolve;
     private bool loggedFovInventory;

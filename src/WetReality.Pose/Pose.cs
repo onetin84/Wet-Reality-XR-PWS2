@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.SubsystemsImplementation;
 using UnityEngine.XR;
 
-[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.121.2", "Wet Reality")]
+[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.122.9", "Wet Reality")]
 [assembly: MelonGame("FuturLab", "PowerWash Simulator 2")]
 
 namespace WetReality;
@@ -440,6 +440,13 @@ public sealed class Pose : MelonMod
     private MelonPreferences_Entry<bool> abseilProbe = null!;
     private MelonPreferences_Entry<bool> equipmentProbeKeys = null!;
     private readonly EquipmentProbe equipmentProbe = new();
+    private MelonPreferences_Entry<bool> menuEyeFrustum = null!;
+    private bool autoEnableSpent;
+    private int eyeRescued;
+    private readonly List<string> eyeRescuedNames = new();
+    private MelonPreferences_Entry<bool> jetPerNozzle = null!;
+    private MelonPreferences_Entry<bool> turboSpin = null!;
+    private readonly NozzleJets nozzleJets = new();
     private MelonPreferences_Entry<bool> washerWheelEnabled = null!;
     private readonly WasherWheel washerWheel = new();
     private bool r3HeldFromWheel;
@@ -1505,6 +1512,19 @@ public sealed class Pose : MelonMod
                 + "washer, which the game never displaces. Fixes the jet starting "
                 + "in front of the muzzle after game start. Needs WashAimSkip bit "
                 + "65536; off falls back to clearing only the sideways offset.");
+
+        // MEHRFACHSTRAHL UND TURBO, NozzleJets.cs. Zwei Schalter, weil es zwei
+        // Aenderungen sind: Trident prueft die erste allein, eine
+        // Einzel-Turboduese die zweite allein, die Doppel-Turboduese beide.
+        jetPerNozzle = settings.CreateEntry("JetPerNozzle", true,
+            description: "Gives every jet of a multi-jet nozzle (trident, double turbo) its own "
+                + "origin and direction from its own spray point. Off sends every jet down the "
+                + "first one, as up to 1.121.3. Single nozzles are unaffected. Needs WashAimSkip "
+                + "bit 256.");
+        turboSpin = settings.CreateEntry("TurboSpin", true,
+            description: "Spins the jet of turbo nozzles, which the game stops doing while "
+                + "WashAimSkip bit 1 is set. Angle and speed come from the nozzle's cleaning "
+                + "settings. Needs WashAimSkip bit 128.");
 
         // Comfort turning, design document sections 20 and 21. Smooth by
         // default because that is what was asked for; snap is a config switch
@@ -2628,7 +2648,8 @@ public sealed class Pose : MelonMod
         equipmentProbeKeys = settings.CreateEntry("EquipmentProbe", true,
             description: "Measurement keys for washer tiers, the game's radial wheel, the "
                 + "adaptable nozzle width and test money (Insert, Delete, End, Page Up/Down, "
-                + "Shift+F7). Each press logs the equipment before and after. Only with DevMode.");
+                + "Shift+F7) and unlocking the trident and double turbo with their washers (Shift+F8, "
+                + "written to the save). Each press logs the equipment before and after. Only with DevMode.");
 
         // DIE WAEHLSCHEIBE DES SPIELS, Abschnitt 205. Aus heisst: R3 halten
         // wechselt wie bis 1.115.0 nur die Marke.
@@ -3141,6 +3162,19 @@ public sealed class Pose : MelonMod
             description: "Decide whether a menu element is on screen from its RECTANGLE "
                 + "instead of its pivot. Off restores the pivot test, which drops large "
                 + "tiles whose pivot sits outside the viewport.");
+
+        // DAS SICHTFELD DES HEADSETS, NICHT DAS DES FENSTERS. Gemeldet: beim
+        // Blick nach unten liess sich im Menue nichts mehr waehlen. Der Canvas
+        // ist kopffest, aber OnScreen projizierte gegen das 16:9-Spiegelfenster
+        // (3840x2160), und das Augenbild ist fast quadratisch (2148x2012). Im
+        // 1.122.0-Lauf fielen 52 Knoepfe als offscreen heraus, ALLE unterhalb
+        // des Fensters, keiner seitlich - genau der untere Menuestreifen, den
+        // man im Headset sieht und nur mit gesenktem Blick erreicht.
+        menuEyeFrustum = settings.CreateEntry("MenuEyeFrustum", true,
+            description: "Count a menu element as visible when it lies inside either eye's view, "
+                + "not only inside the desktop window. The headset shows more above and below "
+                + "than the 16:9 window, and elements there were not selectable. Off restores "
+                + "the window test.");
 
         menuSettingControls = settings.CreateEntry("MenuSettingControls", true,
             description: "Operate the settings screen: trigger activates buttons and "
@@ -3688,7 +3722,17 @@ public sealed class Pose : MelonMod
         // back must not have it taken away again on the next frame, and
         // OnLateUpdate already returns early while XRSettings.enabled is false,
         // so an active mod with no XR writes nothing.
-        var wantOn = !active && autoEnableWithXr.Value && XRSettings.enabled;
+        //
+        // DAS VERSPRECHEN HIELT BIS 1.122.6 NICHT: wantOn hing nur an !active,
+        // also schaltete die Automatik im Frame nach F2 wieder ein. Gemessen
+        // 29.09. 00:46:41: "Controller aiming off." um .923, "enabled
+        // automatically" um .943. F2 konnte das flache Spiel nie
+        // zurueckgeben. Jetzt einmal je XR-Start; laeuft XR nicht, ist die
+        // Automatik fuer den naechsten Start wieder scharf.
+        if (!XRSettings.enabled)
+            autoEnableSpent = false;
+
+        var wantOn = !active && !autoEnableSpent && autoEnableWithXr.Value && XRSettings.enabled;
 
         // KeyDown, NOT DevKeyDown. F2 is the way back to the flat game and a
         // player needs it - AutoEnableWithXR hands the washer to the controller
@@ -3702,6 +3746,7 @@ public sealed class Pose : MelonMod
         if (wantOn && !toggled)
         {
             active = true;
+            autoEnableSpent = true;
             LoggerInstance.Msg("Controller aiming enabled automatically: XR is running "
                 + "(AutoEnableWithXR).");
         }
@@ -4365,8 +4410,16 @@ public sealed class Pose : MelonMod
             splash.Hide();
         }
 
+        // Im flachen Modus (F2) laeuft DriveRay nicht, also auch die
+        // Kegelmessung nicht. Sie ist aber genau DORT gefragt: nur dann dreht
+        // das Spiel selbst. Nur lesen, nichts schreiben.
         if (!active)
+        {
+            if (devMode.Value)
+                nozzleJets.MeasureFlat(LoggerInstance);
+
             return;
+        }
 
         SampleCamera();
 
@@ -7341,7 +7394,12 @@ public sealed class Pose : MelonMod
                     var authored = AuthoredAnchorPosition(nozzleAnchor, lp);
 
                     if (lp != authored)
+                    {
+                        // Der entfernte Betrag geht an NozzleJets: die
+                        // weiteren Anker einer Mehrfachduese tragen denselben.
+                        nozzleJets.NoteFudge(nozzleAnchor, lp - authored);
                         nozzleAnchor.localPosition = authored;
+                    }
                 }
             }
 
@@ -7374,6 +7432,14 @@ public sealed class Pose : MelonMod
                 // one frame of identity is all this costs.
                 spawnRotationForced = false;
             }
+
+            // NACH Bit 128 und der Ankerklemmung, VOR dem Laser und dem
+            // Veroeffentlichen: der Turbo setzt die Drehung auf die Identitaet
+            // von Bit 128, und Laser, Strahl und Postfix lesen danach alle
+            // denselben Stand.
+            nozzleJets.Update(LoggerInstance, washProbe.Equipment, raySpawn, assembly,
+                jetPerNozzle.Value, turboSpin.Value, (aimSkip.Value & 128) != 0,
+                (aimSkip.Value & 65536) != 0, devMode.Value, CurrentExtension());
 
             UpdateLaser(muzzle);
 
@@ -7411,6 +7477,7 @@ public sealed class Pose : MelonMod
             // moment the game has just filled the nozzle instances - a value it
             // can read without reaching back into the scene from inside a detour.
             GameInput.NozzleForward = raySpawn.forward;
+            GameInput.NozzleRotation = raySpawn.rotation;
             GameInput.NozzleOrigin = muzzle;
             GameInput.NozzleReady = true;
 
@@ -7484,6 +7551,23 @@ public sealed class Pose : MelonMod
             LoggerInstance.Warning($"  wash ray threw {exception.GetType().Name}; leaving it to the game.");
             overrideRay.Value = false;
             rayStatus = "ray: failed";
+        }
+    }
+
+    // Die eingesetzte Verlaengerung, fuer die Turbo-Faktoren in NozzleJets.
+    // Derselbe Weg wie EquipmentProbe.Describe; null, solange kein
+    // EquipmentManager gefunden ist.
+    private Il2CppFuturLab.PW2.ExtensionData? CurrentExtension()
+    {
+        try
+        {
+            return equipment is null || equipment == null
+                ? null
+                : equipment.ConfigurationManager?.CurrentConfiguration?.Extension;
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -16261,6 +16345,44 @@ public sealed class Pose : MelonMod
     //
     // A corner behind the camera projects to a mirrored point and must not widen
     // the box; one corner in front is enough to call the element reachable.
+    // Die vier Ecken aus cornerBuffer im Viewport des linken und des rechten
+    // Auges, ueber die Stereo-Matrizen, die XR der Kamera gibt. Ueberlappung
+    // mit 0..1 in einem der beiden reicht - dieselbe Regel wie im Fenster.
+    // Liefert XR keine eigenen Matrizen, rechnet Unity mono, und das Ergebnis
+    // ist das des Fensters in anderen Einheiten: dann holt dieser Weg nichts
+    // zurueck, und die Scanzeile zeigt eyeRescued 0.
+    private bool InEitherEye(Camera camera) =>
+        InEye(camera, Camera.MonoOrStereoscopicEye.Left)
+        || InEye(camera, Camera.MonoOrStereoscopicEye.Right);
+
+    private bool InEye(Camera camera, Camera.MonoOrStereoscopicEye eye)
+    {
+        if (cornerBuffer is null)
+            return false;
+
+        var minX = float.MaxValue;
+        var maxX = float.MinValue;
+        var minY = float.MaxValue;
+        var maxY = float.MinValue;
+        var anyInFront = false;
+
+        for (var index = 0; index < 4; index++)
+        {
+            var corner = camera.WorldToViewportPoint(cornerBuffer[index], eye);
+
+            if (corner.z <= 0f)
+                continue;
+
+            anyInFront = true;
+            minX = Mathf.Min(minX, corner.x);
+            maxX = Mathf.Max(maxX, corner.x);
+            minY = Mathf.Min(minY, corner.y);
+            maxY = Mathf.Max(maxY, corner.y);
+        }
+
+        return anyInFront && maxX >= 0f && minX <= 1f && maxY >= 0f && minY <= 1f;
+    }
+
     private bool TryProjectRect(RectTransform rect, Camera camera,
         out float minX, out float maxX, out float minY, out float maxY)
     {
@@ -16347,8 +16469,13 @@ public sealed class Pose : MelonMod
                     out var minY, out var maxY))
                 return " (rect unprojectable)";
 
+            // Und wo er im linken Auge liegt, in Viewport-Einheiten: der
+            // Befund, ob das Fenster oder das Auge falsch urteilt.
+            var eye = camera.WorldToViewportPoint(rect.position, Camera.MonoOrStereoscopicEye.Left);
+
             return $" (x {minX:0}..{maxX:0} y {minY:0}..{maxY:0}"
-                + $" scr {Screen.width}x{Screen.height})";
+                + $" scr {Screen.width}x{Screen.height}"
+                + $" eyeL {eye.x:0.##}/{eye.y:0.##})";
         }
         catch (Exception exception)
         {
@@ -16392,8 +16519,25 @@ public sealed class Pose : MelonMod
                 // OVERLAP, not containment: a tile that runs off the edge of the
                 // screen is still partly visible and still pointable, and the
                 // shop lays out exactly such tiles.
-                return maxX >= 0f && minX <= Screen.width
-                    && maxY >= 0f && minY <= Screen.height;
+                if (maxX >= 0f && minX <= Screen.width
+                    && maxY >= 0f && minY <= Screen.height)
+                    return true;
+
+                // Ausserhalb des FENSTERS, aber vielleicht im Auge. Die Ecken
+                // liegen noch in cornerBuffer, TryProjectRect hat sie eben
+                // geholt. Gezaehlt, damit die Scanzeile sagt, ob dieser Weg
+                // ueberhaupt etwas zurueckholt.
+                if (menuEyeFrustum.Value && XRSettings.enabled && InEitherEye(camera))
+                {
+                    eyeRescued++;
+
+                    if (eyeRescuedNames.Count < 3)
+                        eyeRescuedNames.Add(node.name);
+
+                    return true;
+                }
+
+                return false;
             }
 
             var point = camera.WorldToScreenPoint(node.position);
@@ -16545,6 +16689,8 @@ public sealed class Pose : MelonMod
         offscreenNames.Clear();
         lockedNames.Clear();
         offscreenRescue.Clear();
+        eyeRescued = 0;
+        eyeRescuedNames.Clear();
 
         var droppedOffscreen = 0;
         var droppedFaded = 0;
@@ -16758,6 +16904,8 @@ public sealed class Pose : MelonMod
                     + $", faded {droppedFaded},"
                     + $" locked {droppedLocked}"
                     + $"{(lockedNames.Count == 0 ? "" : " [" + string.Join(", ", lockedNames) + "]")}"
+                    + $"   eyeRescued {eyeRescued}"
+                    + $"{(eyeRescuedNames.Count == 0 ? "" : " [" + string.Join(", ", eyeRescuedNames) + "]")}"
                     + $"   rectCandidates {menuRectCandidates.Value}"
                     + $"   {MenuSurfaceText()}"
                     + $"   moveAction {(moveAction is null ? "NULL" : "ok")}"
