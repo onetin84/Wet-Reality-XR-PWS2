@@ -44,7 +44,7 @@ internal sealed class Splash
     private bool loadFailed;
     private bool loggedOnce;
     private float startedAt = -1f;
-    private float aspect = 1545f / 888f;
+    private float aspect = 1650f / 953f;
 
     internal bool Visible => holder is not null && holder != null && startedAt >= 0f;
 
