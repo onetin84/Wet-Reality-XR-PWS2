@@ -24,6 +24,7 @@ internal sealed class SprayHapticSettings
     private readonly MelonPreferences_Entry<float> jet40;
     private readonly MelonPreferences_Entry<float> jetSoap;
     private readonly MelonPreferences_Entry<float> jetDefault;
+    private readonly MelonPreferences_Entry<bool> byCategory;
     private readonly MelonPreferences_Entry<float> turboFactor;
     private readonly MelonPreferences_Entry<float> turboHz;
     private readonly MelonPreferences_Entry<float> turboDepth;
@@ -47,6 +48,7 @@ internal sealed class SprayHapticSettings
         MelonPreferences_Entry<float> jet40,
         MelonPreferences_Entry<float> jetSoap,
         MelonPreferences_Entry<float> jetDefault,
+        MelonPreferences_Entry<bool> byCategory,
         MelonPreferences_Entry<float> turboFactor,
         MelonPreferences_Entry<float> turboHz,
         MelonPreferences_Entry<float> turboDepth,
@@ -69,6 +71,7 @@ internal sealed class SprayHapticSettings
         this.jet40 = jet40;
         this.jetSoap = jetSoap;
         this.jetDefault = jetDefault;
+        this.byCategory = byCategory;
         this.turboFactor = turboFactor;
         this.turboHz = turboHz;
         this.turboDepth = turboDepth;
@@ -144,8 +147,31 @@ internal sealed class SprayHapticSettings
     // geschrieben, traegt die Gruppe weiter. Ein unbekannter Name faellt auf
     // die Standardbasis - eine kuenftige Duese fuehlt sich dann mittelmaessig
     // an statt gar nicht.
-    internal float JetBase(string jet, int group)
+    //
+    // SEIT 1.123.1 ZUERST DIE KATEGORIE DES SPIELS. NozzleData.VibrationCategory
+    // ist in allen 73 geladenen Duesen gesetzt (Bestand 29.09. 01:02) und
+    // folgt den Farbcodes echter Hochdruckduesen: Red = 0 Grad, Turbo,
+    // Doppelturbo, Trident; Yellow = 15; Green = 25; White = 40, Adaptable
+    // und alle Flaechenreiniger-Koepfe; Soap = Seife. Jede Farbe nimmt den
+    // Wert ihrer Gradzahl - keine neuen Regler. Der Name bleibt Rueckfall,
+    // wenn die Kategorie nicht lesbar ist (category < 0).
+    //
+    // Der Rueckfall traegt den alten Fehler: Gruppe 2 ist beim
+    // Flaechenreiniger HeadLarge, nicht Seife.
+    internal float JetBase(string jet, int group, int category = -1)
     {
+        if (byCategory.Value && category >= 0)
+        {
+            switch (category)
+            {
+                case 0: return jet40.Value;     // SprayingWhite
+                case 1: return jet25.Value;     // SprayingGreen
+                case 2: return jet15.Value;     // SprayingYellow
+                case 3: return jet0.Value;      // SprayingRed
+                case 4: return jetSoap.Value;   // SprayingSoap
+            }
+        }
+
         if (IsSoap(jet) || group == 2)
             return jetSoap.Value;
 

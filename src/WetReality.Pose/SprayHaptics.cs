@@ -68,6 +68,7 @@ internal sealed class SprayHaptics
     private string jetName = "";
     private string washerName = "";
     private int nozzleGroup = -1;
+    private int vibCategory = -1;
     private bool sawConfiguration;
 
     internal string JetName => jetName;
@@ -88,6 +89,7 @@ internal sealed class SprayHaptics
         jetName = "";
         washerName = "";
         nozzleGroup = -1;
+        vibCategory = -1;
         sawConfiguration = false;
         lastTurboRotation = 0f;
         turboSeenUntil = 0f;
@@ -287,7 +289,7 @@ internal sealed class SprayHaptics
         if (!washing)
             return 0f;
 
-        var basis = settings.JetBase(jetName, nozzleGroup);
+        var basis = settings.JetBase(jetName, nozzleGroup, vibCategory);
 
         if (IsTurbo(settings))
             basis *= settings.TurboFactor;
@@ -355,6 +357,17 @@ internal sealed class SprayHaptics
 
         jetName = type is null || type == null ? "" : type.ShortName ?? "";
         nozzleGroup = type is null || type == null ? -1 : type.NozzleGroup;
+
+        // Die Kategorie des Spiels, ein Enum-Getter auf der Klasse. Ein Wurf
+        // laesst -1 stehen, und JetBase faellt auf den Namen zurueck.
+        try
+        {
+            vibCategory = nozzle is null || nozzle == null ? -1 : (int)nozzle.VibrationCategory;
+        }
+        catch
+        {
+            vibCategory = -1;
+        }
         washerName = washer is null || washer == null ? "" : washer.name ?? "";
 
         // DIE ZAHLEN DES SPIELS, mitgeloggt und NICHT benutzt.
@@ -379,7 +392,8 @@ internal sealed class SprayHaptics
                 + $" to {(type is null ? -1f : type.ReticleMaxSizeModifier):0.##}"
                 + $"   multiNozzle {(type is null ? "?" : type.HasMultipleNozzles.ToString())}"
                 + $"   turboNeedle \"{settings.TurboWasher}\""
-                + $"   -> base {settings.JetBase(jetName, nozzleGroup):0.###}");
+                + $"   vib {(vibCategory < 0 ? "?" : ((Il2CppFuturLab.PW2.VibrationTrigger)vibCategory).ToString())}"
+                + $"   -> base {settings.JetBase(jetName, nozzleGroup, vibCategory):0.###}");
         }
         catch (Exception exception)
         {

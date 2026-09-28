@@ -212,6 +212,9 @@ internal sealed class NozzleJets
                     + $"   primary world {primary.position}" + live);
 
             if (lines is not null)
+                ReportInventory(log);
+
+            if (lines is not null)
             {
                 reportedNozzle = nozzle is null || nozzle == null ? IntPtr.Zero : nozzle.Pointer;
                 reportedCount = count;
@@ -552,6 +555,60 @@ internal sealed class NozzleJets
         coneMin = float.MaxValue;
         coneMax = 0f;
         nextCone = Time.unscaledTime + 1f;
+    }
+
+    // DIE VIBRATIONSKATEGORIEN ALLER DUESEN, EINMAL - Offene Punkte
+    // "Vibration nach NozzleData.VibrationCategory". Gemessen waren bisher nur
+    // 40 = SprayingWhite und 15 = SprayingYellow; fuer Turbo, Trident,
+    // Adaptable und die Flaechenreiniger-Koepfe fehlten die Werte. Statt jede
+    // Duese einzeln anzuwaehlen, liest diese Liste alle geladenen NozzleData
+    // beim ersten Duesenwechsel - und noch einmal, falls spaeter mehr geladen
+    // sind (DLC). Nur Lesen, eine Zeile je Duese.
+    private int inventoryCount = -1;
+
+    private void ReportInventory(MelonLogger.Instance log)
+    {
+        try
+        {
+            var found = Resources.FindObjectsOfTypeAll(
+                Il2CppInterop.Runtime.Il2CppType.Of<Il2CppFuturLab.PW2.NozzleData>());
+
+            if (found.Length == 0 || found.Length <= inventoryCount)
+                return;
+
+            inventoryCount = found.Length;
+            var text = new System.Text.StringBuilder(
+                $"nozzle inventory: {found.Length} NozzleData loaded");
+
+            for (var i = 0; i < found.Length; i++)
+            {
+                var nozzle = found[i]?.TryCast<Il2CppFuturLab.PW2.NozzleData>();
+
+                if (nozzle is null || nozzle == null)
+                    continue;
+
+                var type = nozzle.NozzleType;
+                var settings = nozzle.CleaningSettings;
+
+                text.Append($"\n    {nozzle.name}")
+                    .Append($"   short \"{(type is null || type == null ? "?" : type.ShortName)}\"")
+                    .Append($"   group {(type is null || type == null ? -1 : type.NozzleGroup)}")
+                    .Append($"   vib {nozzle.VibrationCategory}")
+                    .Append($"   tips {nozzle.NozzleCount}")
+                    .Append(settings is null
+                        ? "   settings null"
+                        : $"   turbo {(settings.IsTurbo ? "Y" : "n")}"
+                            + $"   adaptable {(settings.IsAdaptable ? "Y" : "n")}"
+                            + $"   head {(settings.IsHead ? "Y" : "n")}"
+                            + $"   soap {(settings.IsSoapNozzle ? "Y" : "n")}");
+            }
+
+            log.Msg(text.ToString());
+        }
+        catch (Exception exception)
+        {
+            log.Warning($"nozzle inventory threw {exception.GetType().Name}: {exception.Message}");
+        }
     }
 
     private static float Signed(float angle) => angle > 180f ? angle - 360f : angle;

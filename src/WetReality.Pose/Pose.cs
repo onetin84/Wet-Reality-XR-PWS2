@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.SubsystemsImplementation;
 using UnityEngine.XR;
 
-[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.122.9", "Wet Reality")]
+[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.123.1", "Wet Reality")]
 [assembly: MelonGame("FuturLab", "PowerWash Simulator 2")]
 
 namespace WetReality;
@@ -96,6 +96,7 @@ public sealed class Pose : MelonMod
     private MelonPreferences_Entry<float> hapticJet40 = null!;
     private MelonPreferences_Entry<float> hapticJetSoap = null!;
     private MelonPreferences_Entry<float> hapticJetDefault = null!;
+    private MelonPreferences_Entry<bool> hapticByCategory = null!;
     private MelonPreferences_Entry<float> hapticTurboFactor = null!;
     private MelonPreferences_Entry<float> hapticTurboHz = null!;
     private MelonPreferences_Entry<float> hapticTurboDepth = null!;
@@ -1351,6 +1352,13 @@ public sealed class Pose : MelonMod
 
         hapticJetDefault = settings.CreateEntry("HapticJetDefault", 0.30f,
             description: "Amplitude for a nozzle this mod does not know by name.");
+
+        // Die Kategorie des Spiels vor dem Namen - SprayHapticSettings.JetBase.
+        hapticByCategory = settings.CreateEntry("HapticByCategory", true,
+            description: "Pick the spray strength from the game's own vibration category of the "
+                + "nozzle (red = HapticJet0, yellow = 15, green = 25, white = 40, soap). Turbo, "
+                + "double turbo and trident then feel like the 0 degree jet, adaptable and the "
+                + "surface-cleaner heads like 40. Off goes by the nozzle name as before.");
 
         // TURBO IST EIN REINIGER, nicht eine Duese: die Schultergeste ruft
         // InvokeSwitchGun. Damit ist er orthogonal zur Strahlart, und der
@@ -3497,7 +3505,7 @@ public sealed class Pose : MelonMod
         sprayHapticSettings = new SprayHapticSettings(
             sprayHapticsOn, hapticIntensity,
             hapticJet0, hapticJet15, hapticJet25, hapticJet40,
-            hapticJetSoap, hapticJetDefault,
+            hapticJetSoap, hapticJetDefault, hapticByCategory,
             hapticTurboFactor, hapticTurboHz, hapticTurboDepth, hapticTurboWasher,
 
             hapticTurboAuto,
