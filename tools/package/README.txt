@@ -114,8 +114,8 @@ CONTROLS AND SETTINGS
 
   It has the full control layout under "Open quick guide", and settings for
   which hand holds the washer, turn speed, menu size and distance, the
-  alignment of the washer in your hand, the vibration while spraying and its
-  strength, whether the two VR hands are shown and whether they wear the
+  alignment of the washer in your hand, the vibration while spraying, its
+  strength and after how long it stops, whether the two VR hands are shown and whether they wear the
   game's orange gloves, and whether the aiming laser is drawn.
 
   The button at the bottom starts the game through Steam, so the window can

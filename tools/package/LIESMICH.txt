@@ -77,7 +77,7 @@ STEUERUNG UND EINSTELLUNGEN
   Dort steht die vollständige Steuerungsbelegung unter "Kurzanleitung
   öffnen", dazu die Einstellungen: welche Hand die Pistole hält,
   Drehgeschwindigkeit, Menügröße und -abstand, die Ausrichtung der Pistole in
-  deiner Hand, die Vibration beim Sprühen samt Stärke, ob die beiden VR-Hände
+  deiner Hand, die Vibration beim Sprühen samt Stärke und Endzeit, ob die beiden VR-Hände
   angezeigt werden und die orangen Handschuhe des Spiels tragen, ob der
   Ziellaser gezeichnet wird, die Farbe der
   Zeigestrahlen und die Größe des Teleport-Ziels.
