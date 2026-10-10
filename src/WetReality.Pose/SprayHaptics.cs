@@ -43,6 +43,10 @@ internal sealed class SprayHaptics
 
     private bool washing;
     private bool washedLast;
+    // Beginn des aktuellen Abzugsdrucks. Gesetzt NUR am Spruehbeginn, also
+    // nicht beim Duesen- oder Reinigerwechsel: ein Wechsel bei gehaltenem
+    // Abzug weckt den abgeklungenen Dauerpuls nicht wieder.
+    private float washStart;
     private float contact;
     private float nextSend;
     private bool sending;
@@ -80,6 +84,7 @@ internal sealed class SprayHaptics
         segments.Clear();
         washing = false;
         washedLast = false;
+        washStart = 0f;
         contact = 0f;
         nextSend = 0f;
         sending = false;
@@ -172,7 +177,10 @@ internal sealed class SprayHaptics
                 // Anlauf- und Abschlussimpuls. Der Abschluss ist schwaecher,
                 // weil er ein Ende bestaetigt und keine Aufmerksamkeit will.
                 if (washing)
+                {
+                    washStart = Time.unscaledTime;
                     Queue(settings.StartPulse, settings.StartSeconds);
+                }
                 else
                     Queue(settings.StopPulse, settings.StopSeconds);
             }
@@ -266,6 +274,7 @@ internal sealed class SprayHaptics
                     + $"   turbo {(IsTurbo(settings) ? "YES" : "no")}"
                     + $" (rot {turboRotation:0.##} latched {(turboLatched ? "Y" : "n")})"
                     + $"   washing {(washing ? "YES" : "no")}"
+                    + $" (held {(washing ? now - washStart : 0f):0.#} s, fade {HoldFade(settings):0.##})"
                     + $"   hitDist {hitDistance:0.##}"
                     + $"   contact {contact:0.##}"
                     + $"   amp {lastSentAmplitude:0.###}"
@@ -297,7 +306,27 @@ internal sealed class SprayHaptics
         var contactFactor = settings.ContactFactor
             + ((1f - settings.ContactFactor) * Mathf.Clamp01(contact));
 
-        return basis * contactFactor * settings.Intensity;
+        return basis * contactFactor * settings.Intensity * HoldFade(settings);
+    }
+
+    // Nach FadeAfter Sekunden gehaltenem Abzug klingt der Dauerpuls ab und
+    // bleibt aus, bis der Abzug losgelassen wird. Nur der DAUERPULS: die
+    // Ereignisimpulse laufen als Segmente und gewinnen weiter, ein
+    // Duesenwechsel ist also auch danach noch zu fuehlen. Amplitude 0 nimmt
+    // den vorhandenen Stopp-Pfad in Drive, es gibt keinen zweiten.
+    private float HoldFade(SprayHapticSettings settings)
+    {
+        var after = settings.FadeAfter;
+
+        if (after <= 0.001f)
+            return 1f;
+
+        var over = Time.unscaledTime - washStart - after;
+
+        if (over <= 0f)
+            return 1f;
+
+        return 1f - Mathf.Clamp01(over / settings.FadeSeconds);
     }
 
     // Turbo am REINIGERNAMEN, ueber einen konfigurierten Namensteil.

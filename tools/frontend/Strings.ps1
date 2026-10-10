@@ -37,8 +37,9 @@ $script:German = @{
     'Orange gloves, like the game' = 'Orange Handschuhe wie im Spiel'
     'Vibration while spraying' = 'Vibration beim Sprühen'
     'Vibration strength' = 'Vibrationsstärke'
-    'Strength follows the nozzle and the washer. The finer values are in MelonPreferences.cfg.' =
-        'Die Stärke folgt der Düse und dem Reiniger. Die Feinwerte stehen in MelonPreferences.cfg.'
+    'Vibration stops after' = 'Vibration endet nach'
+    'Strength follows the nozzle and the washer. A stop time ends the steady vibration while the trigger stays held and saves controller battery. The finer values are in MelonPreferences.cfg.' =
+        'Die Stärke folgt der Düse und dem Reiniger. Eine Endzeit beendet die Dauervibration bei gehaltenem Abzug und schont den Controller-Akku. Die Feinwerte stehen in MelonPreferences.cfg.'
 
     # ------------------------------------------------------------- display
     'DISPLAY' = 'ANZEIGE'
@@ -104,6 +105,7 @@ $script:German = @{
         'Den Ordner "PowerWash Simulator 2" bitte selbst wählen.'
     'Unsaved changes' = 'Nicht gespeicherte Änderungen'
     'deg/s' = 'Grad/s'
+    'never' = 'nie'
     'missing' = 'fehlt'
     'Select the "PowerWash Simulator 2" folder' = 'Ordner "PowerWash Simulator 2" wählen'
     'The quick guide is not available yet.' = 'Die Kurzanleitung ist noch nicht vorhanden.'

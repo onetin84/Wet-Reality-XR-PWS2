@@ -461,9 +461,24 @@
                                                Style="{StaticResource ValueLabel}" />
                                 </Grid>
 
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                               Text="Vibration stops after" />
+                                    <Slider x:Name="HapticFadeAfterSlider" Grid.Column="1"
+                                            Minimum="0" Maximum="15"
+                                            TickFrequency="0.5" IsSnapToTickEnabled="True" />
+                                    <TextBlock x:Name="HapticFadeAfterValue" Grid.Column="2"
+                                               Style="{StaticResource ValueLabel}" />
+                                </Grid>
+
                                 <TextBlock Foreground="{StaticResource Muted}" FontSize="11"
                                            TextWrapping="Wrap"
-                                           Text="Strength follows the nozzle and the washer. The finer values are in MelonPreferences.cfg." />
+                                           Text="Strength follows the nozzle and the washer. A stop time ends the steady vibration while the trigger stays held and saves controller battery. The finer values are in MelonPreferences.cfg." />
                             </StackPanel>
                         </Border>
 

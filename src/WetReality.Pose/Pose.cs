@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.SubsystemsImplementation;
 using UnityEngine.XR;
 
-[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.123.1", "Wet Reality")]
+[assembly: MelonInfo(typeof(WetReality.Pose), "Wet Reality Pose", "1.123.2", "Wet Reality")]
 [assembly: MelonGame("FuturLab", "PowerWash Simulator 2")]
 
 namespace WetReality;
@@ -109,6 +109,7 @@ public sealed class Pose : MelonMod
     private MelonPreferences_Entry<bool> hapticTurboAuto = null!;
     private MelonPreferences_Entry<float> hapticRefresh = null!;
     private MelonPreferences_Entry<float> hapticBreathe = null!;
+    private MelonPreferences_Entry<float> hapticFadeAfter = null!;
     private MelonPreferences_Entry<bool> sprayHapticReport = null!;
 
     private readonly SprayHaptics sprayHaptics = new();
@@ -1436,6 +1437,14 @@ public sealed class Pose : MelonMod
         hapticBreathe = settings.CreateEntry("HapticBreathe", 0.05f,
             description: "Slow natural variation, as a share. Must stay under about 0.05 or it "
                 + "reads as deliberate pulsing. 0 switches it off.");
+
+        // Wunsch eines Testers mit kurzer Controller-Akkulaufzeit: wie beim
+        // Gamepad endet der Dauerpuls nach einigen Sekunden. Standard 0 = aus,
+        // damit sich fuer niemanden etwas aendert, der es nicht einschaltet.
+        hapticFadeAfter = settings.CreateEntry("HapticFadeAfter", 0f,
+            description: "Seconds of held trigger after which the steady spray vibration fades "
+                + "out and stays off until the trigger is released, like on a gamepad. Nozzle "
+                + "and washer switch pulses still come through. 0 keeps it running.");
 
         sprayHapticReport = settings.CreateEntry("SprayHapticReport", true,
             description: "Log one spray-haptic line per second while the driver is on. It "
@@ -3510,7 +3519,7 @@ public sealed class Pose : MelonMod
 
             hapticTurboAuto,
             hapticContactFactor, hapticContactSmooth,
-            hapticRefresh, hapticBreathe, () => Dev(sprayHapticReport),
+            hapticRefresh, hapticBreathe, hapticFadeAfter, () => Dev(sprayHapticReport),
             SendSprayPulse, StopSprayPulse, ProbeSprayContact);
 
         GameInput.Install(HarmonyInstance, LoggerInstance, patchWashRay.Value,

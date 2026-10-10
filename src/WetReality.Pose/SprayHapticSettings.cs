@@ -34,6 +34,7 @@ internal sealed class SprayHapticSettings
     private readonly MelonPreferences_Entry<float> contactSmooth;
     private readonly MelonPreferences_Entry<float> refresh;
     private readonly MelonPreferences_Entry<float> breathe;
+    private readonly MelonPreferences_Entry<float> fadeAfter;
     private readonly Func<bool> report;
     private readonly Action<float, float> send;
     private readonly Action stop;
@@ -58,6 +59,7 @@ internal sealed class SprayHapticSettings
         MelonPreferences_Entry<float> contactSmooth,
         MelonPreferences_Entry<float> refresh,
         MelonPreferences_Entry<float> breathe,
+        MelonPreferences_Entry<float> fadeAfter,
         Func<bool> report,
         Action<float, float> send,
         Action stop,
@@ -81,6 +83,7 @@ internal sealed class SprayHapticSettings
         this.contactSmooth = contactSmooth;
         this.refresh = refresh;
         this.breathe = breathe;
+        this.fadeAfter = fadeAfter;
         this.report = report;
         this.send = send;
         this.stop = stop;
@@ -97,6 +100,13 @@ internal sealed class SprayHapticSettings
     internal float ContactFactor => Mathf.Clamp01(contactFactor.Value);
     internal float ContactSmooth => contactSmooth.Value;
     internal float Breathe => breathe.Value;
+
+    // DAUERPULS NUR FUER N SEKUNDEN, wie beim Gamepad des Spiels - Wunsch
+    // eines Testers mit kurzer Controller-Akkulaufzeit. 0 heisst: laeuft
+    // durch wie bisher. Das Abklingen ist eine Form, kein Geschmack, und
+    // darum keine Preference.
+    internal float FadeAfter => Mathf.Max(0f, fadeAfter.Value);
+    internal float FadeSeconds => 0.5f;
     // Kommt als Funktion herein, damit der DevMode-Deckel des Aufrufers
     // gilt: eine Diagnose, die im Beta mitlaeuft, zahlt Frames fuer eine
     // Frage, die beantwortet ist.

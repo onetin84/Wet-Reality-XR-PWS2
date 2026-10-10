@@ -597,6 +597,7 @@ function Load-Settings {
 
     (Ctl 'TurnSpeedSlider').Value = [double](Read-CfgValue -Key 'TurnSpeed' -Fallback '90')
     (Ctl 'HapticIntensitySlider').Value = [double](Read-CfgValue -Key 'HapticIntensity' -Fallback '1')
+    (Ctl 'HapticFadeAfterSlider').Value = [double](Read-CfgValue -Key 'HapticFadeAfter' -Fallback '0')
     (Ctl 'UiScaleSlider').Value = [double](Read-CfgValue -Key 'UiScale' -Fallback '0.5')
     (Ctl 'UiDistanceSlider').Value = [double](Read-CfgValue -Key 'UiDistance' -Fallback '2')
     (Ctl 'GripXSlider').Value = [double](Read-CfgValue -Key 'GripOffsetX' -Fallback '0')
@@ -644,6 +645,9 @@ function Update-Labels {
     (Ctl 'TurnSpeedValue').Text = "$([int](Ctl 'TurnSpeedSlider').Value) $(T 'deg/s')"
     # Als Prozent, weil 1.25 als Zahl nichts sagt und "125 %" alles.
     (Ctl 'HapticIntensityValue').Text = "$([int]((Ctl 'HapticIntensitySlider').Value * 100)) %"
+    # 0 heisst "laeuft durch", und das soll das Feld auch sagen statt "0 s".
+    $fadeAfter = (Ctl 'HapticFadeAfterSlider').Value
+    (Ctl 'HapticFadeAfterValue').Text = if ($fadeAfter -le 0) { T 'never' } else { "$(Format-Float $fadeAfter) s" }
     (Ctl 'UiScaleValue').Text = "$([int]((Ctl 'UiScaleSlider').Value * 100)) %"
     (Ctl 'UiDistanceValue').Text = "$((Format-Float (Ctl 'UiDistanceSlider').Value)) m"
     # In Zentimetern: "45 cm" sagt mehr als "0,45 m", und es ist ein
@@ -770,7 +774,7 @@ function Mark-Dirty {
 
 # --------------------------------------------------------------------- events
 
-foreach ($name in @('TurnSpeedSlider', 'HapticIntensitySlider',
+foreach ($name in @('TurnSpeedSlider', 'HapticIntensitySlider', 'HapticFadeAfterSlider',
                     'UiScaleSlider', 'UiDistanceSlider', 'MarkerSizeSlider',
                     'GripXSlider', 'GripYSlider', 'GripZSlider',
                     'RotPitchSlider', 'RotYawSlider', 'RotRollSlider')) {
@@ -896,6 +900,7 @@ foreach ($name in @('SnapAngleSlider', 'VignetteStrengthSlider')) {
             'Hand'          = "`"$hand`""
             'TurnSpeed'     = Format-Float (Ctl 'TurnSpeedSlider').Value
             'HapticIntensity' = Format-Float (Ctl 'HapticIntensitySlider').Value
+            'HapticFadeAfter' = Format-Float (Ctl 'HapticFadeAfterSlider').Value
             'SprayHaptics'  = Format-Bool ([bool](Ctl 'SprayHapticsCheck').IsChecked)
             'UiScale'       = Format-Float (Ctl 'UiScaleSlider').Value
             'UiDistance'    = Format-Float (Ctl 'UiDistanceSlider').Value
